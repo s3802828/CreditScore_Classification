@@ -1,0 +1,36 @@
+---
+title: "Group Project"
+author: "Group 38"
+date: "2024-04-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load libraries
+```{r}
+library(ggplot2)
+library(tidyverse)
+```
+
+## Load dataset
+
+```{r}
+data <- as.data.frame(read.csv("credit_train.csv", header = TRUE))
+```
+## Remove unnecessary columns
+```{r}
+data <- data[ , -which(names(data) %in% c("ID", "Name", "SSN"))]
+```
+
+## Change value for Credit_History_Age column
+
+```{r}
+data["Credit_History_Age"] = lapply(data["Credit_History_Age"], function(x) {
+    years <- as.integer(sub("\\Years.*", "", x))
+    months <- as.integer(sub(".*\\d+\\s+Years\\s+and\\s+(\\d+)\\s+Months.*", "\\1", x))
+    return(years*12 + months)
+})
+```
+
