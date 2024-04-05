@@ -19,6 +19,11 @@ library(tidyverse)
 ```{r}
 data <- as.data.frame(read.csv("credit_train.csv", header = TRUE))
 ```
+## Check duplicate rows
+```{r}
+sum(duplicated(data))
+```
+
 ## Remove unnecessary columns
 ```{r}
 data <- data[ , -which(names(data) %in% c("ID", "Name", "SSN"))]
