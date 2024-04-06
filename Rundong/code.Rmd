@@ -124,6 +124,5 @@ data <- data %>%
   select(-Mean) %>%
   ungroup()
 
-write.csv(data, "processed_data.csv", row.names = FALSE)
 ```
 
