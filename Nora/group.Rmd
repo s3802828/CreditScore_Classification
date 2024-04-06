@@ -1,0 +1,300 @@
+---
+title: 5003_datacleaning"
+author: "Wanxin Bao"
+date: "2024-04-06"
+output:
+   html_document:
+    fig_caption: yes 
+    number_sections: yes
+    self_contained: yes
+    theme: flatly
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: hide
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Preparation and data load
+
+```{r, include=FALSE}
+library(ggplot2)
+library(caret)
+library(tidyr)
+```
+
+```{r}
+data <- read.csv("C:/Users/apple/Desktop/train.csv")
+head(data)
+```
+
+# 1. Type_of_Loan
+
+## 1.1 Count NA and empty strings
+
+```{r}
+# Count NA and empty strings in the Type_of_Loan column
+num_na <- sum(is.na(data$Type_of_Loan))
+num_blank <- sum(data$Type_of_Loan == "")
+print(paste("Number of missing values:", num_na))
+print(paste("Number of blank:", num_blank))
+
+# Calculate the percentage of blank
+percentage_blank <- (num_blank / nrow(data)) * 100
+print(paste("Percentage of blank:", percentage_blank, "%"))
+
+```
+
+
+## 1.2 handle with empty strings
+
+```{r}
+# Use conditional indexing to get corresponding Type_of_Loan values
+non_loan <- data$Type_of_Loan[data$Num_of_Loan <= 0]
+head(non_loan)
+```
+
+It has been observed that when the values in the Num_of_Loan column are 0 or negative, there still exists some content in the Type_of_Loan column(e.g "Not Specified"). It is considered that a loan count of 0 or negative effectively means there is no loan type. Therefore, the values in the Type_of_Loan column corresponding to 0 or negative values in the Num_of_Loan column should be set to "Non_Loan".
+
+```{r}
+# Set Type_of_Loan to "Non Loan" where Num_of_Loan is 0 or negative
+data$Type_of_Loan <- ifelse(data$Num_of_Loan <= 0, "Non Loan", data$Type_of_Loan)
+```
+
+
+## 1.3 distribution of each type
+
+```{r}
+# Remove all "and "
+data$Type_of_Loan <- gsub("and ", "", data$Type_of_Loan)
+
+# Split by ", "
+splitLoans <- strsplit(data$Type_of_Loan, ", ", fixed = TRUE)
+
+# Flatten the list to a vector
+loanTypes <- unlist(splitLoans)
+
+# Count the frequency of each text
+loanTypeFrequency <- table(loanTypes)
+
+loanTypeFrequencyDF <- as.data.frame(loanTypeFrequency)
+colnames(loanTypeFrequencyDF) <- c("LoanType", "Frequency")
+
+library(ggplot2)
+ggplot(loanTypeFrequencyDF, aes(x = LoanType, y = Frequency, fill = LoanType)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Frequency), vjust = -0.3, color = "black") +
+  theme_minimal() +
+  labs(title = "Frequency Distribution of Type_of_Loan", x = "Loan Type", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 25, hjust = 1)) +
+  scale_fill_brewer(palette = "Spectral")
+
+```
+
+
+
+# 2. Credit_Mix
+
+## 2.1 Count NA and "_" strings
+
+```{r}
+data$Credit_Mix <- factor(data$Credit_Mix)
+levels_of_Credit_Mix <- levels(data$Credit_Mix)
+print(levels_of_Credit_Mix)
+```
+
+
+```{r}
+# rename "_" with "Unknown"
+levels(data$Credit_Mix) <- c("Unknown", "Bad", "Good", "Standard")
+
+# Count NA and "_" strings in the Credit_Mix column
+num_na <- sum(is.na(data$Credit_Mix))
+num_unknown <- sum(data$Credit_Mix == "Unknown")
+print(paste("Number of missing values:", num_na))
+print(paste("Number of unknown:", num_unknown))
+
+# Calculate the percentage of none
+percentage_unknown <- (num_unknown / nrow(data)) * 100
+print(paste("Percentage of unknown:", percentage_unknown, "%"))
+```
+
+## 2.2 distribution of Credit_Mix
+
+```{r}
+frequency_of_Credit_Mix <- table(data$Credit_Mix)
+frequencyDF <- as.data.frame(frequency_of_Credit_Mix)
+names(frequencyDF) <- c("Level", "Frequency")
+
+ggplot(frequencyDF, aes(x = Level, y = Frequency)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = Frequency), vjust = -0.3, color = "black") + 
+  theme_minimal() +
+  labs(title = "Distribution of Credit_Mix", x = "Category", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+```
+
+
+# 3. Payment_of_Min_Amount
+
+## 3.1 Count NA and NM
+
+```{r}
+data$Payment_of_Min_Amount <- factor(data$Payment_of_Min_Amount)
+levels_of_Payment_of_Min_Amount <- levels(data$Payment_of_Min_Amount)
+print(levels_of_Payment_of_Min_Amount)
+```
+
+
+```{r}
+# rename "NM" with "Unknown"
+levels(data$Payment_of_Min_Amount) <- c("Unknown", "No", "Yes")
+
+# Count NA and NM in the Payment_of_Min_Amount column
+num_na <- sum(is.na(data$Payment_of_Min_Amount))
+num_unknown <- sum(data$Payment_of_Min_Amount == "Unknown")
+print(paste("Number of missing values:", num_na))
+print(paste("Number of unknown:", num_unknown))
+
+# Calculate the percentage of none
+percentage_unknown <- (num_unknown / nrow(data)) * 100
+print(paste("Percentage of unknown:", percentage_unknown, "%"))
+```
+
+
+## 3.3 distribution of Payment_of_Min_Amount
+
+```{r}
+frequency_of_Payment_of_Min_Amount <- table(data$Payment_of_Min_Amount)
+frequencyDF <- as.data.frame(frequency_of_Payment_of_Min_Amount)
+names(frequencyDF) <- c("Level", "Frequency")
+
+ggplot(frequencyDF, aes(x = Level, y = Frequency)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = Frequency), vjust = -0.3, color = "black") + 
+  theme_minimal() +
+  labs(title = "Distribution of Payment_of_Min_Amount", x = "Category", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+```
+
+
+# 4. Payment_Behaviour
+
+## 4.1 Count NA and "!@9#%8"
+
+```{r}
+data$Payment_Behaviour <- factor(data$Payment_Behaviour)
+levels_of_Payment_Behaviour <- levels(data$Payment_Behaviour)
+print(levels_of_Payment_Behaviour)
+```
+
+```{r}
+# rename "!@9#%8" with "Unknown"
+levels(data$Payment_Behaviour) <- c("Unknown", "High_Large", "High_Medium", "High_Small", "Low_Large", "Low_Medium", "Low_Small")
+
+# Count NA and "!@9#%8" in the Payment_Behaviour column
+num_na <- sum(is.na(data$Payment_Behaviour))
+num_unknown <- sum(data$Payment_Behaviour == "Unknown")
+print(paste("Number of missing values:", num_na))
+print(paste("Number of unknown:", num_unknown))
+
+# Calculate the percentage of unknown
+percentage_unknown <- (num_unknown / nrow(data)) * 100
+print(paste("Percentage of unknown:", percentage_unknown, "%"))
+```
+
+
+## 4.2 distribution of Payment_Behaviour
+
+```{r}
+frequency_of_Payment_Behaviour <- table(data$Payment_Behaviour)
+frequencyDF <- as.data.frame(frequency_of_Payment_Behaviour)
+names(frequencyDF) <- c("Level", "Frequency")
+
+ggplot(frequencyDF, aes(x = Level, y = Frequency, fill = Level)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Frequency), vjust = -0.3, color = "black") +
+  theme_minimal() +
+  labs(title = "Distribution of Payment_Behaviour", x = "Category", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 18, hjust = 1)) +
+  scale_fill_viridis_d()
+```
+
+
+# 5. Credit_Score
+
+## 5.1 Count missing value
+
+```{r}
+data$Credit_Score <- factor(data$Credit_Score)
+levels_of_Credit_Score <- levels(data$Credit_Score)
+print(levels_of_Credit_Score)
+
+# Count missing value
+num_na <- sum(is.na(data$Payment_Behaviour))
+print(paste("Number of missing values:", num_na))
+
+```
+
+
+## 5.2 distribution of Credit_Score
+
+```{r}
+frequency_of_Credit_Score <- table(data$Credit_Score)
+frequencyDF <- as.data.frame(frequency_of_Credit_Score)
+names(frequencyDF) <- c("Level", "Frequency")
+
+ggplot(frequencyDF, aes(x = Level, y = Frequency, fill = Level)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Frequency), vjust = -0.3, color = "black") +
+  theme_minimal() +
+  labs(title = "Distribution of Credit_Score", x = "Category", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 18, hjust = 1)) +
+  scale_fill_viridis_d()
+```
+
+
+# 3 Factorize categorical types
+
+```{r}
+library(dplyr)
+
+data <- data %>%
+  mutate(
+    Credit_Mix_numeric = case_when(
+      Credit_Mix == "Bad" ~ 1,
+      Credit_Mix == "Standard" ~ 2,
+      Credit_Mix == "Good" ~ 3,
+      TRUE ~ NA_real_
+    ),
+    Payment_of_Min_Amount_numeric = case_when(
+      Payment_of_Min_Amount == "No" ~ 0,
+      Payment_of_Min_Amount == "Yes" ~ 1,
+      TRUE ~ NA_real_
+    ),
+    Payment_Behaviour_numeric = case_when(
+      Payment_Behaviour == "High_Large" ~ 6,
+      Payment_Behaviour == "High_Medium" ~ 5,
+      Payment_Behaviour == "High_Small" ~ 4,
+      Payment_Behaviour == "Low_Large" ~ 3,
+      Payment_Behaviour == "Low_Medium" ~ 2,
+      Payment_Behaviour == "Low_Small" ~ 1,    
+      TRUE ~ NA_real_
+    ),
+    Credit_Score_numeric = case_when(
+      Credit_Score == "Poor" ~ 1,
+      Credit_Score == "Standard" ~ 2,
+      Credit_Score == "Good" ~ 3,
+      TRUE ~ NA_real_
+    )
+  )
+
+
+head(data)
+```
+
