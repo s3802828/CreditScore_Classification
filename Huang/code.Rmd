@@ -93,6 +93,22 @@ data <- data %>%
 ```
 
 ```{r}
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Q1 = quantile(Num_Credit_Inquiries, 0.25, na.rm = TRUE),
+         Q3 = quantile(Num_Credit_Inquiries, 0.75, na.rm = TRUE),
+         IQR = Q3 - Q1,
+         Lower_Bound = Q1 - 1.5 * IQR,
+         Upper_Bound = Q3 + 1.5 * IQR) %>%
+  mutate(Num_Credit_Inquiries = if_else(Num_Credit_Inquiries < Lower_Bound | 
+                                        Num_Credit_Inquiries > Upper_Bound, NA_real_, Num_Credit_Inquiries)) %>%
+  select(-Q1, -Q3, -IQR, -Lower_Bound, -Upper_Bound) %>%
+  fill(Num_Credit_Inquiries, .direction = "up") %>%
+  fill(Num_Credit_Inquiries, .direction = "down") %>%
+  ungroup()
+```
+
+```{r}
 # Test
 data
 ```
@@ -123,13 +139,78 @@ print(filtered_data)
 ```
 
 
-## Credit_History_Age {.tabset .tabset-fade .tabset-pills}
+## Num_Bank_Accounts {.tabset .tabset-fade .tabset-pills}
 ```{r}
 # This is a function that can find the most common value in every column
 find_most <- function(x) {
   ux <- unique(na.omit(x))
   ux[which.max(tabulate(match(x, ux)))]
 }
+```
+```{r}
+result <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Mode = find_most(Num_Bank_Accounts),
+         Num_Bank_Accounts = Mode) %>% 
+  select(-Mode) %>% 
+  ungroup() 
+```
+
+
+## Num_Credit_Card {.tabset .tabset-fade .tabset-pills}
+```{r}
+result <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Mode = find_most(Num_Credit_Card),
+         Num_Credit_Card = Mode) %>% 
+  select(-Mode) %>% 
+  ungroup() 
+```
+
+
+## Interest_Rate {.tabset .tabset-fade .tabset-pills}
+```{r}
+result <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Mode = find_most(Interest_Rate),
+         Interest_Rate = Mode) %>% 
+  select(-Mode) %>% 
+  ungroup() 
+```
+
+
+## Credit_Utilization_Ratio {.tabset .tabset-fade .tabset-pills}
+```{r}
+out_of_range <- data %>%
+  filter(Credit_Utilization_Ratio < 0 | Credit_Utilization_Ratio > 100)
+print(out_of_range)
+if(nrow(out_of_range) > 0) {
+  print("There are values outside the 0 to 100 range")
+} else {
+  print("All values are in 0 to 100 range")
+}
+```
+
+
+## Total_EMI_per_month {.tabset .tabset-fade .tabset-pills}
+```{r}
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Q1 = quantile(Total_EMI_per_month, 0.25, na.rm = TRUE),
+         Q3 = quantile(Total_EMI_per_month, 0.75, na.rm = TRUE),
+         IQR = Q3 - Q1,
+         Lower_Bound = Q1 - 1.5 * IQR,
+         Upper_Bound = Q3 + 1.5 * IQR) %>%
+  mutate(Total_EMI_per_month = if_else(Total_EMI_per_month < Lower_Bound | 
+                                        Total_EMI_per_month > Upper_Bound, NA_real_, Total_EMI_per_month)) %>%
+  select(-Q1, -Q3, -IQR, -Lower_Bound, -Upper_Bound) %>%
+  fill(Total_EMI_per_month, .direction = "up") %>%
+  fill(Total_EMI_per_month, .direction = "down") %>%
+  ungroup()
+```
+
+```{r}
+data
 ```
 
 
