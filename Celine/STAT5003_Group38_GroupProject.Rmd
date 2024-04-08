@@ -10,10 +10,13 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Load libraries
 ```{r}
-library(ggplot2)
-library(tidyverse)
-library(dplyr)
-library(caret)
+library('tidyverse')
+library('readr')
+library('dplyr')
+library('ggplot2')
+library('broom')
+library('tinytex')
+library('caret')
 ```
 
 ## Load dataset
@@ -41,11 +44,11 @@ data["Credit_History_Age"] = lapply(data["Credit_History_Age"], function(x) {
     return(years*12 + months)
 })
 ```
-
-## Check data values of target variable
+## Change data types
 ```{r}
-is.null(data$Credit_Score)
-sum(is.na(data$Credit_Score) == TRUE)
+categorical_var <- c("Month","Occupation", "Credit_Mix", "Payment_of_Min_Amount", "Payment_Behaviour", "Credit_Score")
+data[categorical_var] <- lapply(data[categorical_var], as.factor)
+str(data)
 ```
 # 1. Type_of_Loan
 
@@ -112,7 +115,6 @@ ggplot(loanTypeFrequencyDF, aes(x = LoanType, y = Frequency, fill = LoanType)) +
 ## 2.1 Count NA and "_" strings
 
 ```{r}
-data$Credit_Mix <- factor(data$Credit_Mix)
 levels_of_Credit_Mix <- levels(data$Credit_Mix)
 print(levels_of_Credit_Mix)
 ```
@@ -153,7 +155,6 @@ ggplot(frequencyDF, aes(x = Level, y = Frequency)) +
 ## 3.1 Count NA and NM
 
 ```{r}
-data$Payment_of_Min_Amount <- factor(data$Payment_of_Min_Amount)
 levels_of_Payment_of_Min_Amount <- levels(data$Payment_of_Min_Amount)
 print(levels_of_Payment_of_Min_Amount)
 ```
@@ -196,7 +197,6 @@ ggplot(frequencyDF, aes(x = Level, y = Frequency)) +
 ## 4.1 Count NA and "!@9#%8"
 
 ```{r}
-data$Payment_Behaviour <- factor(data$Payment_Behaviour)
 levels_of_Payment_Behaviour <- levels(data$Payment_Behaviour)
 print(levels_of_Payment_Behaviour)
 ```
@@ -283,34 +283,28 @@ sum(duplicated(count_credit_mix$Customer_ID))
 
 ```{r}
 count_payment_behavior <- data[data$Payment_Behaviour != '!@9#%8', which(names(data) %in% c("Customer_ID", "Payment_Behaviour"))] %>% group_by(Customer_ID, Payment_Behaviour) %>% summarise(total_count = n(), .groups = "drop")
-count_payment_max_count_by_cust <- count_payment_behavior %>% group_by(Customer_ID) %>% filter(total_count == max(total_count))  %>% do(head(., n = 1))
-sum(duplicated(count_payment_max_count_by_cust$Customer_ID))
+sum(duplicated(count_payment_behavior$Customer_ID))
+```
+```{r}
+find_mode_except_bad_value <- function(x, bad_value) {
+  ux <- unique(na.omit(x[x != bad_value]))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Mode_Occupation = find_mode_except_bad_value(Occupation, '_______'),
+         Occupation = if_else(Occupation == '_______', Mode_Occupation, Occupation),
+         Mode_Credit_Mix = find_mode_except_bad_value(Credit_Mix, '_'),
+         Credit_Mix = if_else(Credit_Mix == '_', Mode_Credit_Mix, Credit_Mix),
+         Mode_Payment_of_Min_Amount = find_mode_except_bad_value(Payment_of_Min_Amount, 'NM'),
+         Payment_of_Min_Amount = if_else(Payment_of_Min_Amount == 'NM', Mode_Payment_of_Min_Amount, Payment_of_Min_Amount),
+          Mode_Payment_Behaviour = find_mode_except_bad_value(Payment_Behaviour, '!@9#%8'),
+         Payment_Behaviour = if_else(Payment_Behaviour == '!@9#%8', Mode_Payment_Behaviour, Payment_Behaviour)) %>%
+  select(-c(Mode_Occupation, Mode_Credit_Mix, Mode_Payment_of_Min_Amount, Mode_Payment_Behaviour)) %>%
+  ungroup()
 ```
 
-```{r}
-invalid_value_df <- data[data$Payment_Behaviour == '!@9#%8' | data$Payment_of_Min_Amount == 'NM' | data$Occupation == '_______' | data$Credit_Mix == '_',]
-```
-```{r}
-fill_invalid_values = function(row){
-  if (row[["Payment_Behaviour"]] == '!@9#%8') {
-    row["Payment_Behaviour"] <- count_payment_max_count_by_cust[count_payment_max_count_by_cust["Customer_ID"] == row[["Customer_ID"]],]$Payment_Behaviour
-  }
-  if(row[["Credit_Mix"]] == '_'){
-    row["Credit_Mix"] <- count_credit_mix[count_credit_mix["Customer_ID"] == row[["Customer_ID"]],]$Credit_Mix
-  }
-  if(row[["Occupation"]] == '_______'){
-      row["Occupation"] <- count_occupation[count_occupation["Customer_ID"] == row[["Customer_ID"]],]$Occupation
-  }
-  if(row[["Payment_of_Min_Amount"]] == 'NM'){
-    row["Payment_of_Min_Amount"] <- count_payment_of_min_amount[count_payment_of_min_amount["Customer_ID"] == row[["Customer_ID"]],]$Payment_of_Min_Amount
-  }
-  return(row)
-}
-for (i in 1:nrow(invalid_value_df)) {
-  invalid_value_df[i, ] <- fill_invalid_values(invalid_value_df[i, ])
-}
-data[rownames(invalid_value_df), ] <- invalid_value_df
-```
 ```{r}
 nrow(data[data$Credit_Mix == '_',])
 nrow(data[data$Occupation == '_______',])
@@ -319,12 +313,10 @@ nrow(data[data$Payment_Behaviour == '!@9#%8',])
 ```
 
 ```{r}
-str(data)
-```
-```{r}
 sum(is.null(data$Month))
 data %>% group_by(Month) %>% tally()
 ```
+
 
 # 3 Factorize categorical types
 
@@ -359,7 +351,7 @@ data <- data %>%
     )
   )
 
-
 head(data)
+
 ```
 
