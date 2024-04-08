@@ -77,12 +77,12 @@ data <- data %>%
   select(-Mean) %>%
   ungroup()
 
-#Num_of_Loan=-100 or >=20
+#Num_of_Loan=-100 or >=5
 data <- data %>%
   mutate(Num_of_Loan = as.numeric(Num_of_Loan)) %>%
   group_by(Customer_ID) %>%
-  mutate(Mean = round(mean(Num_of_Loan[Num_of_Loan < 20 & Num_of_Loan !=-100], na.rm = TRUE)),
-         Num_of_Loan = if_else(Num_of_Loan >= 20 | Num_of_Loan == -100, Mean, Num_of_Loan)) %>%
+  mutate(Mean = round(mean(Num_of_Loan[Num_of_Loan < 5 & Num_of_Loan !=-100], na.rm = TRUE)),
+         Num_of_Loan = if_else(Num_of_Loan >= 5 | Num_of_Loan == -100, Mean, Num_of_Loan)) %>%
   select(-Mean) %>%
   ungroup()
 
