@@ -45,141 +45,247 @@ data["Credit_History_Age"] = lapply(data["Credit_History_Age"], function(x) {
     return(years*12 + months)
 })
 ```
+# Cleaning
+## Delete "_"
 ```{r}
-str(data)
-```
-```{r}
-data
-```
+for(i in c("Age","Annual_Income", "Num_of_Loan", "Num_of_Delayed_Payment", 
+                    "Changed_Credit_Limit", "Outstanding_Debt", "Amount_invested_monthly", "Monthly_Balance")) {
+  data[[i]] <- gsub("_", "", data[[i]])
+  
+  data[[i]] <- as.numeric(data[[i]])
+}
 
-
-
-# Missing values {.tabset .tabset-fade .tabset-pills}
-## Count missing values {.tabset .tabset-fade .tabset-pills}
-
-```{r}
-colSums(is.na(data))
-```
-
-```{r}
-empty_string_counts <- data %>%
-  summarise(across(everything(), ~ sum(.x == "", na.rm = TRUE))) %>%
-  select_if(~ .x > 0)
-print(empty_string_counts)
-```
-
-
-## Monthly_Inhand_Salary {.tabset .tabset-fade .tabset-pills}
-
-```{r}
-data <- data %>%
-  group_by(Customer_ID) %>%
-  fill(Monthly_Inhand_Salary, .direction = "up") %>%
-  fill(Monthly_Inhand_Salary, .direction = "down") %>%
-  ungroup()
-```
-
-```{r}
-# Test
-data
-```
-## Num_Credit_Inquiries {.tabset .tabset-fade .tabset-pills}
-```{r}
-data <- data %>%
-  group_by(Customer_ID) %>%
-  fill(Num_Credit_Inquiries, .direction = "up") %>%
-  fill(Num_Credit_Inquiries, .direction = "down") %>%
-  ungroup()
-```
-
-```{r}
-data <- data %>%
-  group_by(Customer_ID) %>%
-  mutate(Q1 = quantile(Num_Credit_Inquiries, 0.25, na.rm = TRUE),
-         Q3 = quantile(Num_Credit_Inquiries, 0.75, na.rm = TRUE),
-         IQR = Q3 - Q1,
-         Lower_Bound = Q1 - 1.5 * IQR,
-         Upper_Bound = Q3 + 1.5 * IQR) %>%
-  mutate(Num_Credit_Inquiries = if_else(Num_Credit_Inquiries < Lower_Bound | 
-                                        Num_Credit_Inquiries > Upper_Bound, NA_real_, Num_Credit_Inquiries)) %>%
-  select(-Q1, -Q3, -IQR, -Lower_Bound, -Upper_Bound) %>%
-  fill(Num_Credit_Inquiries, .direction = "up") %>%
-  fill(Num_Credit_Inquiries, .direction = "down") %>%
-  ungroup()
-```
-
-```{r}
-# Test
-data
-```
-
-
-## Credit_History_Age {.tabset .tabset-fade .tabset-pills}
-```{r}
-data <- data %>%
-  group_by(Customer_ID) %>%
-  mutate(Index = row_number()) %>%
-  arrange(Customer_ID, Index) %>%
-  mutate(First_Valid = min(Index[!is.na(Credit_History_Age)])) %>% 
-  mutate(Base = Credit_History_Age[First_Valid] - First_Valid) %>% 
-  mutate(Credit_History_Age = if_else(is.na(Credit_History_Age), Index + Base, Credit_History_Age)) %>%
-  select(-Index, -First_Valid, -Base) %>%
-  ungroup()
-```
-
-```{r}
-# Test
-colSums(is.na(data))
-```
-
-```{r}
-filtered_data <- data %>%
-  filter(Customer_ID == "CUS_0x3e2d")
-print(filtered_data)
-```
-
-
-## Num_Bank_Accounts {.tabset .tabset-fade .tabset-pills}
-```{r}
-# This is a function that can find the most common value in every column
 find_most <- function(x) {
   ux <- unique(na.omit(x))
   ux[which.max(tabulate(match(x, ux)))]
 }
 ```
 ```{r}
-result <- data %>%
-  group_by(Customer_ID) %>%
-  mutate(Mode = find_most(Num_Bank_Accounts),
-         Num_Bank_Accounts = Mode) %>% 
-  select(-Mode) %>% 
-  ungroup() 
+colSums(is.na(data))
 ```
-
-
-## Num_Credit_Card {.tabset .tabset-fade .tabset-pills}
+## Age
 ```{r}
-result <- data %>%
-  group_by(Customer_ID) %>%
-  mutate(Mode = find_most(Num_Credit_Card),
-         Num_Credit_Card = Mode) %>% 
-  select(-Mode) %>% 
-  ungroup() 
+# This is a function to find the bound of the column by using IQR
+calculate_bounds <- function(column_name) {
+  Q1 <- quantile(data[[column_name]], 0.25, na.rm = TRUE)
+  Q3 <- quantile(data[[column_name]], 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+  return(c(lower_bound, upper_bound))
+}
 ```
-
-
-## Interest_Rate {.tabset .tabset-fade .tabset-pills}
 ```{r}
-result <- data %>%
-  group_by(Customer_ID) %>%
-  mutate(Mode = find_most(Interest_Rate),
-         Interest_Rate = Mode) %>% 
-  select(-Mode) %>% 
-  ungroup() 
+# This is a function to check if each group has a unique value
+analyze_unique_values <- function(income_column) {
+  lower_bound <- calculate_bounds(income_column)[1]
+  upper_bound <- calculate_bounds(income_column)[2]
+  
+  filtered_data <- data %>%
+    filter(!!sym(income_column) >= lower_bound & !!sym(income_column) <= upper_bound)
+  
+  result <- filtered_data %>%
+    group_by(Customer_ID) %>%
+    summarise(Unique_Value_Count = n_distinct(!!sym(income_column)),
+              Only_One_Unique_Value = Unique_Value_Count == 1) %>%
+    ungroup()
+
+  if(all(result$Only_One_Unique_Value)) {
+    cat("All groups have only one unique value.\n")
+  } else {
+    cat("These groups have different values:\n")
+    print(result %>% filter(Only_One_Unique_Value == FALSE))
+  }
+}
+```
+
+```{r}
+analyze_unique_values("Age")
+```
+```{r}
+# This is a function to change outliers with neighbor
+clean_data_with_neighbor <- function(column_name, lower_bound, upper_bound) {
+  column_sym <- sym(column_name)
+  result <- data %>%
+    group_by(Customer_ID) %>%
+    mutate(
+      !!column_sym := ifelse(
+        .data[[column_name]] < lower_bound | .data[[column_name]] > upper_bound, NA, .data[[column_name]]
+      )
+    ) %>%
+    fill(!!column_sym, .direction = "up") %>%
+    fill(!!column_sym, .direction = "down") %>%
+    ungroup()
+  
+  return(result)
+}
+```
+```{r}
+lower_bound <- calculate_bounds("Age")[1]
+upper_bound <- calculate_bounds("Age")[2]
+
+data <- clean_data_with_neighbor("Age", 0, upper_bound)
 ```
 
 
-## Credit_Utilization_Ratio {.tabset .tabset-fade .tabset-pills}
+## Annual_Income
+```{r}
+analyze_unique_values("Annual_Income")
+```
+```{r}
+# This is a function that can find the most common value in every column
+find_mode <- function(x) {
+  ux <- unique(na.omit(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+```
+```{r}
+# This is a function to change outliers with mode
+clean_data_with_mode <- function(column_name) {
+  col_sym <- rlang::sym(column_name) 
+  result <- data %>%
+    group_by(Customer_ID) %>%
+    mutate(Mode = find_mode(!!col_sym),
+           !!col_sym := Mode) %>% 
+    select(-Mode) %>%
+    ungroup()
+  
+  return(result)
+}
+```
+```{r}
+data <- clean_data_with_mode("Annual_Income")
+```
+## Monthly_Inhand_Salary
+
+```{r}
+# This is a function to fill NA with neighbor
+fill_NA_with_neighbour <- function(column_name) {
+  result <- data %>%
+    group_by(Customer_ID) %>%
+    fill(!!rlang::sym(column_name), .direction = "up") %>%
+    fill(!!rlang::sym(column_name), .direction = "down") %>%
+    ungroup()
+  
+  return(result)
+}
+```
+```{r}
+data <- fill_NA_with_neighbour("Monthly_Inhand_Salary")
+```
+## Num_Bank_Accounts
+```{r}
+analyze_unique_values("Num_Bank_Accounts")
+```
+```{r}
+lower_bound <- calculate_bounds("Num_Bank_Accounts")[1]
+upper_bound <- calculate_bounds("Num_Bank_Accounts")[2]
+
+data <- clean_data_with_neighbor("Num_Bank_Accounts", 0, upper_bound)
+```
+
+
+## Num_Credit_Card
+```{r}
+analyze_unique_values("Num_Credit_Card")
+```
+```{r}
+lower_bound <- calculate_bounds("Num_Credit_Card")[1]
+upper_bound <- calculate_bounds("Num_Credit_Card")[2]
+
+data <- clean_data_with_neighbor("Num_Credit_Card", 0, upper_bound)
+```
+
+
+## Interest_Rate
+```{r}
+analyze_unique_values("Interest_Rate")
+```
+```{r}
+data <- clean_data_with_mode("Annual_Income")
+```
+
+
+## Num_of_Loan
+```{r}
+analyze_unique_values("Num_of_Loan")
+```
+```{r}
+data <- clean_data_with_mode("Num_of_Loan")
+```
+
+
+## Delay_from_due_date
+```{r}
+# This is a function to replace negative value with 0
+replace_negative_with_0 <- function(column_name) {
+  result <- data %>%
+    mutate(!!rlang::sym(column_name) := ifelse(!!rlang::sym(column_name) < 0, 0, !!rlang::sym(column_name)))
+  
+  return(result)
+}
+```
+```{r}
+data <- replace_negative_with_0("Delay_from_due_date")
+```
+
+## Num_of_Delayed_Payment
+```{r}
+data <- fill_NA_with_neighbour("Num_of_Delayed_Payment")
+lower_bound <- calculate_bounds("Num_of_Delayed_Payment")[1]
+upper_bound <- calculate_bounds("Num_of_Delayed_Payment")[2]
+
+data <- clean_data_with_neighbor("Num_of_Delayed_Payment", 0, upper_bound)
+```
+
+
+## Changed_Credit_Limit
+```{r}
+data <- replace_negative_with_0("Changed_Credit_Limit")
+```
+```{r}
+# This is a function to fill NA with mean
+fill_NA_with_mean <- function(column_name) {
+  col_sym <- rlang::sym(column_name)
+  result <- data %>%
+    group_by(Customer_ID) %>%
+    mutate(
+      Mean = round(mean({{col_sym}}[!is.na({{col_sym}})], na.rm = TRUE), 2),
+      {{col_sym}} := if_else(is.na({{col_sym}}), Mean, {{col_sym}})
+    ) %>%
+    select(-Mean) %>%
+    ungroup()
+  return(result)
+}
+```
+```{r}
+data <- fill_NA_with_mean("Changed_Credit_Limit")
+```
+
+
+## Num_Credit_Inquiries
+```{r}
+analyze_unique_values("Num_Credit_Inquiries")
+```
+```{r}
+data <- fill_NA_with_neighbour("Num_Credit_Inquiries")
+lower_bound <- calculate_bounds("Num_Credit_Inquiries")[1]
+upper_bound <- calculate_bounds("Num_Credit_Inquiries")[2]
+
+data <- clean_data_with_neighbor("Num_Credit_Inquiries", 0, upper_bound)
+```
+
+
+## Outstanding_Debt
+```{r}
+analyze_unique_values("Outstanding_Debt")
+```
+```{r}
+data <- clean_data_with_mode("Outstanding_Debt")
+```
+
+
+## Credit_Utilization_Ratio
 ```{r}
 out_of_range <- data %>%
   filter(Credit_Utilization_Ratio < 0 | Credit_Utilization_Ratio > 100)
@@ -192,27 +298,68 @@ if(nrow(out_of_range) > 0) {
 ```
 
 
-## Total_EMI_per_month {.tabset .tabset-fade .tabset-pills}
+## Credit_History_Age
 ```{r}
 data <- data %>%
   group_by(Customer_ID) %>%
-  mutate(Q1 = quantile(Total_EMI_per_month, 0.25, na.rm = TRUE),
-         Q3 = quantile(Total_EMI_per_month, 0.75, na.rm = TRUE),
-         IQR = Q3 - Q1,
-         Lower_Bound = Q1 - 1.5 * IQR,
-         Upper_Bound = Q3 + 1.5 * IQR) %>%
-  mutate(Total_EMI_per_month = if_else(Total_EMI_per_month < Lower_Bound | 
-                                        Total_EMI_per_month > Upper_Bound, NA_real_, Total_EMI_per_month)) %>%
-  select(-Q1, -Q3, -IQR, -Lower_Bound, -Upper_Bound) %>%
-  fill(Total_EMI_per_month, .direction = "up") %>%
-  fill(Total_EMI_per_month, .direction = "down") %>%
+  mutate(Index = row_number()) %>%
+  arrange(Customer_ID, Index) %>%
+  mutate(First_Valid = min(Index[!is.na(Credit_History_Age)])) %>% 
+  mutate(Base = Credit_History_Age[First_Valid] - First_Valid) %>% 
+  mutate(Credit_History_Age = if_else(is.na(Credit_History_Age), Index + Base, Credit_History_Age)) %>%
+  select(-Index, -First_Valid, -Base) %>%
   ungroup()
 ```
 
+
+## Total_EMI_per_month
+
 ```{r}
-data
+analyze_unique_values("Total_EMI_per_month")
+```
+```{r}
+lower_bound <- calculate_bounds("Total_EMI_per_month")[1]
+upper_bound <- calculate_bounds("Total_EMI_per_month")[2]
+
+data <- clean_data_with_neighbor("Total_EMI_per_month", 0, 1800)
 ```
 
 
+## Amount_invested_monthly
+```{r}
+unique(data$Amount_invested_monthly)
+```
+```{r}
+# This is a function to replace the outliers and NA with mean
+replace_with_group_mean <- function(column_name, value_to_replace) {
+  col_sym <- sym(column_name)
+  result <- data %>%
+    group_by(Customer_ID) %>%
+    mutate(
+      Group_Mean = mean({{col_sym}}[{{col_sym}} != value_to_replace & !is.na({{col_sym}})], na.rm = TRUE),
+      {{col_sym}} := if_else({{col_sym}} == value_to_replace | is.na({{col_sym}}), Group_Mean, {{col_sym}})
+    ) %>%
+    select(-Group_Mean) %>%
+    ungroup()
+  return(result)
+}
+```
+```{r}
+data <- replace_with_group_mean("Amount_invested_monthly", 10000)
+```
 
+
+## Monthly_Balance
+```{r}
+unique(data$Monthly_Balance)
+```
+```{r}
+data <- replace_with_group_mean("Monthly_Balance", 333333333333333333333333333)
+```
+```{r}
+colSums(is.na(data))
+```
+```{r}
+data
+```
 
