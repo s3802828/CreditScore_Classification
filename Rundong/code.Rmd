@@ -1,0 +1,134 @@
+---
+title: "group work"
+author: "Rundong Shen"
+date: "2024-04-05"
+output: html_document
+---
+
+
+```{r data}
+library('tidyverse')
+library('readr')
+library('dplyr')
+library('ggplot2')
+library('broom')
+library('tinytex')
+library('mlbench')
+library('caret')
+
+data <- as.data.frame(read.csv("credit_train.csv", header = TRUE))
+data <- data[ , -which(names(data) %in% c("ID", "Name", "SSN"))]
+data["Credit_History_Age"] = lapply(data["Credit_History_Age"], function(x) {
+    years <- as.integer(sub("\\Years.*", "", x))
+    months <- as.integer(sub(".*\\d+\\s+Years\\s+and\\s+(\\d+)\\s+Months.*", "\\1", x))
+    return(years*12 + months)
+})
+
+#delete "_"
+for(i in c("Age","Annual_Income", "Num_of_Loan", "Num_of_Delayed_Payment", 
+                    "Changed_Credit_Limit", "Outstanding_Debt")) {
+  data[[i]] <- gsub("_", "", data[[i]])
+  
+  data[[i]] <- as.numeric(data[[i]])
+}
+
+find_most <- function(x) {
+  ux <- unique(na.omit(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#Num_of_Delayed_Payment = NA
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Mode = find_most(Num_of_Delayed_Payment),
+         Num_of_Delayed_Payment = if_else(is.na(Num_of_Delayed_Payment), Mode, Num_of_Delayed_Payment)) %>%
+  select(-Mode) %>%
+  ungroup()
+
+#Changed_Credit_Limit = NA
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Mean = round(mean(Changed_Credit_Limit[!is.na(Changed_Credit_Limit)], na.rm = TRUE),2),
+         Changed_Credit_Limit = if_else(is.na(Changed_Credit_Limit), Mean, Changed_Credit_Limit)) %>%
+  select(-Mean) %>%
+  ungroup()
+
+#Age=<=0 or >=100
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Age = ifelse(Age <= 0 | Age >= 100, NA, Age)) %>%
+  fill(Age, .direction = "up") %>%
+  fill(Age, .direction = "down") %>%
+  ungroup()
+
+#Num_Bank_Accounts=-1 or >=20
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Num_Bank_Accounts = ifelse(Num_Bank_Accounts  >= 20 | Num_Bank_Accounts == -1, NA, Num_Bank_Accounts)) %>%
+  fill(Num_Bank_Accounts, .direction = "up") %>%
+  fill(Num_Bank_Accounts, .direction = "down") %>%
+  ungroup()
+
+#Num_Credit_Card>=20
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Num_Credit_Card = ifelse(Num_Credit_Card  >= 20, NA, Num_Credit_Card)) %>%
+  fill(Num_Credit_Card, .direction = "up") %>%
+  fill(Num_Credit_Card, .direction = "down") %>%
+  ungroup()
+
+#Interest_Rate>= 100
+data <- data %>%
+  mutate(Interest_Rate = as.numeric(Interest_Rate)) %>%
+  group_by(Customer_ID) %>%
+  mutate(Mean = round(mean(Interest_Rate[Interest_Rate < 100], na.rm = TRUE),2),
+         Interest_Rate = if_else(Interest_Rate >= 100, Mean, Interest_Rate)) %>%
+  select(-Mean) %>%
+  ungroup()
+
+#Num_of_Loan=-100 or >=5
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Num_of_Loan = ifelse(Num_of_Loan >= 5 | Num_of_Loan == -100, NA, Num_of_Loan)) %>%
+  fill(Num_of_Loan, .direction = "up") %>%
+  fill(Num_of_Loan, .direction = "down") %>%
+  ungroup()
+
+#Num_of_Delayed_Payment<0 or >=100
+data <- data %>%
+  mutate(Num_of_Delayed_Payment = as.numeric(Num_of_Delayed_Payment)) %>%
+  group_by(Customer_ID) %>%
+  mutate(Mode = find_most(Num_of_Delayed_Payment),
+         Num_of_Delayed_Payment = if_else(Num_of_Delayed_Payment < 0 | Num_of_Delayed_Payment >= 100, Mode, Num_of_Delayed_Payment)) %>%
+  select(-Mode) %>%
+  ungroup()
+
+#Num_Credit_Inquiries>= 50
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Num_Credit_Inquiries = ifelse(Num_Credit_Inquiries >= 50, NA, Num_Credit_Inquiries)) %>%
+  fill(Num_Credit_Inquiries, .direction = "up") %>%
+  fill(Num_Credit_Inquiries, .direction = "down") %>%
+  ungroup()
+
+#Total_EMI_per_month>= 2000
+data <- data %>%
+  group_by(Customer_ID) %>%
+  mutate(Total_EMI_per_month = ifelse(Total_EMI_per_month >= 2000, NA, Total_EMI_per_month)) %>%
+  fill(Total_EMI_per_month, .direction = "up") %>%
+  fill(Total_EMI_per_month, .direction = "down") %>%
+  ungroup()
+
+#Monthly_Balance=__-333333333333333333333333333__
+data <- data %>%
+  mutate(Monthly_Balance = as.character(Monthly_Balance)) %>%
+  mutate(Monthly_Balance = ifelse(Monthly_Balance == "__-333333333333333333333333333__", "333333333333333333333333333", Monthly_Balance)) %>%
+  mutate(Monthly_Balance = as.numeric(Monthly_Balance)) %>%
+  group_by(Customer_ID) %>%
+  mutate(Mean = round(mean(Monthly_Balance[Monthly_Balance != 333333333333333333333333333], na.rm = TRUE),2),
+         Monthly_Balance = if_else(Monthly_Balance == 333333333333333333333333333, Mean, Monthly_Balance)) %>%
+  select(-Mean) %>%
+  ungroup()
+
+```
+
