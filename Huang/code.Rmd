@@ -354,6 +354,10 @@ data <- replace_with_group_mean("Amount_invested_monthly", 10000)
 unique(data$Monthly_Balance)
 ```
 ```{r}
+data <- data %>%
+  mutate(Monthly_Balance = ifelse(Monthly_Balance == -333333333333333333333333333, 333333333333333333333333333, Monthly_Balance))
+```
+```{r}
 data <- replace_with_group_mean("Monthly_Balance", 333333333333333333333333333)
 ```
 ```{r}
