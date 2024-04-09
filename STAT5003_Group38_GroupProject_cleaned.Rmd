@@ -45,6 +45,7 @@ data["Credit_History_Age"] = lapply(data["Credit_History_Age"], function(x) {
 })
 ```
 
+
 # Numerical var
 ## Delete "_"
 ```{r}
@@ -410,8 +411,7 @@ for (column_name in columns) {
 
 ```
 
-#Categorical
-
+# Categorical var
 ## Change data types
 ```{r}
 categorical_var <- c("Month","Occupation", "Credit_Mix", "Payment_of_Min_Amount", "Payment_Behaviour", "Credit_Score")
