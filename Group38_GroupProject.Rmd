@@ -641,8 +641,31 @@ plot_list
 # EDA {.tabset .tabset-fade .tabset-pills}
 ## Heatmap
 ```{r}
+numeric_cols <- c("Month_numeric", "Occupation_numeric", "Credit_Mix_numeric",
+                  "Payment_of_Min_Amount_numeric", "Payment_Behaviour_numeric", 
+                  "Credit_Score_numeric", "Age", "Annual_Income", "Monthly_Inhand_Salary",
+                  "Num_Bank_Accounts", "Num_Credit_Card", "Interest_Rate", "Num_of_Loan",
+                  "Outstanding_Debt", "Credit_Utilization_Ratio", "Total_EMI_per_month",
+                  "Amount_invested_monthly", "Monthly_Balance")
 
+correlation_matrix <- cor(data[numeric_cols], use = "pairwise.complete.obs")
+
+melted_correlation_matrix <- melt(correlation_matrix)
+
+ggplot(melted_correlation_matrix, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab",
+                       name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 60, vjust = 1, size = 8, hjust = 1),
+        axis.text.y = element_text(size = 9)) +
+  labs(x = '', y = '', title = 'Correlation Heatmap') +
+  coord_fixed()
 ```
+## Conclusion:  
+## "Month" and "Occupation" are not related to any other columns.
+## It is interesting that "Num Bank Accounts", "Num Credit Card", "Interest Date", "Num of Loan", and "Outstanding Debt" are positively correlated with each other, and all are negatively correlated with "Credit Score Numeric", "Age", "Annual-Income", and "Monthly Inhand Salary".
 
 ## PCA Plot
 ```{r}
