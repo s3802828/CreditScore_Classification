@@ -1,0 +1,34 @@
+---
+title: "Group Project"
+author: "Group 38"
+date: "2024-04-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load libraries
+```{r}
+library('tidyverse')
+library('readr')
+library('dplyr')
+library('ggplot2')
+library('broom')
+library('tinytex')
+library('caret')
+```
+
+## Load dataset
+
+```{r}
+data <- as.data.frame(read.csv("clean_data.csv", header = TRUE))
+head(data)
+```
+```{r}
+frequency_table <- table(data$Credit_Score)
+frequency_table
+barplot(frequency_table, main = "Distribution of Credit Scores", ylab = "Frequency")
+```
+In this data, we can see the Good:Poor:Standard ≈ 1:1.63:2.98. Given the ratios, the imbalance in this dataset is not particular. Additionally, the number of loans a person has could also impact our prediction results, so methods like oversampling or undersampling that affect the number of our data points are not suitable. Therefore, there is no need to further process the data. In model selection, we have chosen SVM to construct multiple models to reduce the impact on minority classes. For other models, we can adjust class weights to compensate for the lack of samples. In the choice of performance metrics, we have selected F1-score, Precision-Recall Curve, and AUC-ROC, which can reflect the performance of models under imbalanced data conditions.
+
