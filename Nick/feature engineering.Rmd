@@ -1,0 +1,55 @@
+---
+title: "week9"
+output: html_document
+date: "2024-04-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+data <- read.csv("C:\\Users\\haoyu\\Desktop\\cleaned_data.csv")
+```
+
+## Random forest makes predictions by constructing multiple decision trees, which can reduce the risk of overfitting., Provide more stable prediction results. At the same time, it can handle large-scale datasets well.
+```{r}
+set.seed(5003)
+library(randomForest)
+data$Credit_Score <- as.factor(data$Credit_Score)
+model <- randomForest(Credit_Score ~ ., data = data, ntree = 500, type = "classification")
+```
+
+
+## Setting a threshold based on Gini importance to select features is an effective method to optimize model performance and efficiency, while ensuring that the features used have the greatest impact on the model.
+```{r}
+
+importance <- importance(model)
+
+importance_df <- data.frame(Feature = rownames(importance), MeanDecreaseGini = importance[, "MeanDecreaseGini"])
+
+importance_sorted <- importance_df[order(-importance_df$MeanDecreaseGini),]
+
+print(importance_sorted)
+```
+
+Considering the number of features and the size of MeanDecreaseGini comprehensively，
+we seclect columns which score MeanDecreaseGini over 2200:
+
+Outstanding_Debt	5847.895		
+Interest_Rate	4514.114		
+Credit_Mix	4257.434		
+Credit_History_Age	3776.069		
+Delay_from_due_date	3474.969		
+Changed_Credit_Limit	3203.479		
+Monthly_Balance	2589.577		
+Amount_invested_monthly	2581.752		
+Credit_Utilization_Ratio	2478.122		
+Num_Credit_Card	2354.268	
+Total_EMI_per_month	2348.108		
+Num_Credit_Inquiries	2281.634		
+Monthly_Inhand_Salary	2234.555		
+Annual_Income	2224.773		
+Num_of_Delayed_Payment	2208.211	
+
+
