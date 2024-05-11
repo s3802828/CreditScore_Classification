@@ -66,12 +66,6 @@ conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credi
 # 打印混淆矩阵和相关统计数据
 print(conf_matrix)
 
-# 提取并打印准确率，精确率，召回率和F1分数
-accuracy <- conf_matrix$overall['Accuracy']
-precision <- conf_matrix$byClass['Pos Pred Value']
-recall <- conf_matrix$byClass['Sensitivity']
-f1_score <- 2 * (precision * recall) / (precision + recall)
-
 ```
 
 
@@ -245,11 +239,9 @@ Annual_Income	2224.773
 
 ```{r}
 # 假设已经加载了完整的数据集到变量 data 中
-selected_features <- data[, c("Outstanding_Debt", "Interest_Rate", "Credit_Mix", "Credit_History_Age",
-                              "Delay_from_due_date", "Changed_Credit_Limit", "Monthly_Balance",
-                              "Amount_invested_monthly", "Credit_Utilization_Ratio", "Num_Credit_Card",
-                              "Total_EMI_per_month", "Num_Credit_Inquiries", "Monthly_Inhand_Salary",
-                              "Annual_Income", "Credit_Score")]
+selected_features <- data[, c("Outstanding_Debt" ,        "Interest_Rate" ,           "Credit_Mix"    ,           "Credit_History_Age"  ,     "Delay_from_due_date"   ,  "Changed_Credit_Limit"   ,  "Amount_invested_monthly" , "Monthly_Balance" ,         "Credit_Utilization_Ratio" ,"Total_EMI_per_month"   ,  
+"Num_Credit_Inquiries"   ,  "Num_Credit_Card"   ,       "Annual_Income"  ,          "Monthly_Inhand_Salary"  ,  "Num_of_Delayed_Payment"  ,
+"Age"         ,             "Num_Bank_Accounts"   ,     "Payment_of_Min_Amount"  ,  "Month"       ,             "Occupation", "Credit_Score")]
 ```
 
 
@@ -258,7 +250,7 @@ selected_features$Credit_Score <- as.factor(selected_features$Credit_Score)
 
 # 划分训练集和测试集
 set.seed(123)  # 为了可重复性设置随机种子
-training_index <- sample(1:nrow(selected_features), 0.8 * nrow(selected_features))  # 选择80%数据为训练集
+training_index <- sample(1:nrow(selected_features), 0.8 * nrow(selected_features))  # 选择95%数据为训练集
 train_data <- selected_features[training_index, ]
 test_data <- selected_features[-training_index, ]
 
@@ -274,6 +266,37 @@ conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credi
 # 打印混淆矩阵和相关统计数据
 print(conf_matrix)
 ```
+
+```{r}
+# 假设已经加载了完整的数据集到变量 data 中
+selected_features <- data[, c("Outstanding_Debt"  ,       "Interest_Rate"        ,    "Credit_Mix"     ,          "Credit_History_Age"  ,     "Delay_from_due_date"    , 
+ "Changed_Credit_Limit" ,    "Amount_invested_monthly" , "Monthly_Balance"       ,   "Credit_Utilization_Ratio" ,"Total_EMI_per_month"     ,
+ "Num_Credit_Inquiries"  ,   "Num_Credit_Card"    ,      "Annual_Income"          ,  "Monthly_Inhand_Salary"   , "Num_of_Delayed_Payment"  
+, "Age"   ,                   "Num_Bank_Accounts"  ,      "Payment_of_Min_Amount" ,"Credit_Score")]
+```
+
+```{r}
+selected_features$Credit_Score <- as.factor(selected_features$Credit_Score)
+
+# 划分训练集和测试集
+set.seed(123)  # 为了可重复性设置随机种子
+training_index <- sample(1:nrow(selected_features), 0.8 * nrow(selected_features))  # 选择90%数据为训练集
+train_data <- selected_features[training_index, ]
+test_data <- selected_features[-training_index, ]
+
+# 建立随机森林模型
+model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 500)
+
+# 预测
+predictions <- predict(model, test_data)
+
+# 使用混淆矩阵计算评估指标
+conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score))
+
+# 打印混淆矩阵和相关统计数据
+print(conf_matrix)
+```
+
 
 
 
