@@ -1,0 +1,281 @@
+---
+title: 5003_random forest"
+author: "Wanxin Bao"
+date: "2024-05-11"
+output:
+   html_document:
+    fig_caption: yes 
+    number_sections: yes
+    self_contained: yes
+    theme: flatly
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: hide
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Preparation and data load
+
+```{r, include=FALSE}
+library(randomForest)
+library(dplyr)
+library(ggplot2)
+library(caret)
+```
+
+```{r}
+data <- read.csv("C:/Users/apple/Desktop/cleaned_data(1)(1).csv")
+head(data)
+```
+
+# 1. Rondom Forest
+
+
+```{r}
+data$Credit_Score <- as.factor(data$Credit_Score)
+
+# 划分训练集和测试集
+set.seed(123)  # 为了可重复性设置随机种子
+training_index <- sample(1:nrow(data), 0.8 * nrow(data))  # 选择80%数据为训练集
+train_data <- data[training_index, ]
+test_data <- data[-training_index, ]
+
+# 建立随机森林模型
+model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 100)
+
+# 预测和评估
+#predictions <- predict(model, test_data)
+#table(predictions, test_data$Credit_Score)
+
+# 计算准确率
+#accuracy <- sum(predictions == test_data$Credit_Score) / nrow(test_data)
+#print(paste("Accuracy:", accuracy))
+
+# 预测
+predictions <- predict(model, test_data)
+
+# 使用混淆矩阵计算评估指标
+conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score))
+
+# 打印混淆矩阵和相关统计数据
+print(conf_matrix)
+
+# 提取并打印准确率，精确率，召回率和F1分数
+accuracy <- conf_matrix$overall['Accuracy']
+precision <- conf_matrix$byClass['Pos Pred Value']
+recall <- conf_matrix$byClass['Sensitivity']
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+```
+
+
+```{r}
+# 检查标签分布
+print(table(data$Credit_Score))
+
+# 检查预测结果的类别覆盖
+print(table(predictions))
+
+# 计算混淆矩阵，尝试获取更多信息
+conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score), mode = 'everything')
+print(conf_matrix)
+
+# 查看具体的每个类别的统计数据
+print(conf_matrix$byClass)
+
+```
+
+
+
+# 2. parameters
+
+
+```{r}
+library(ranger)
+
+# 使用 ranger 进行并行计算
+model <- ranger(
+    Credit_Score ~ ., 
+    data = data, 
+    num.trees = 100, 
+    mtry = floor(sqrt(ncol(data) - 1)),
+    min.node.size = 10,
+    num.threads = parallel::detectCores()  # 使用所有可用的核心
+)
+
+# 查看模型摘要
+print(model)
+
+
+```
+
+
+```{r}
+# 定义要测试的 mtry 值范围
+mtry_values <- seq(2, 10, by = 2)
+num_trees <- 100
+oob_errors <- numeric(length(mtry_values))
+
+# 对每个 mtry 值训练模型并收集 OOB 错误率
+for (i in seq_along(mtry_values)) {
+  model <- ranger(
+    formula = Credit_Score ~ .,
+    data = data,
+    num.trees = num_trees,
+    mtry = mtry_values[i],
+    min.node.size = 10,
+    num.threads = parallel::detectCores()
+  )
+  oob_errors[i] <- model$prediction.error
+}
+
+# 创建数据框用于绘图
+results <- data.frame(mtry = mtry_values, OOB_Error = oob_errors)
+
+# 绘制 OOB 错误率曲线
+ggplot(results, aes(x = mtry, y = OOB_Error)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "OOB Error Rate vs Mtry",
+       x = "Number of variables randomly sampled as candidates at each split (mtry)",
+       y = "OOB Error Rate") +
+  theme_minimal()
+
+```
+
+
+```{r}
+# 定义要测试的 mtry 值范围
+ntrees_values <- seq(100, 600, by = 100)
+oob_errors <- numeric(length(ntrees_values))
+mtry_values <- 4
+
+
+# 对每个树的数量训练模型并收集 OOB 错误率
+for (i in seq_along(ntrees_values)) {
+  model <- ranger(
+    formula = Credit_Score ~ .,
+    data = data,
+    num.trees = ntrees_values[i],
+    mtry = floor(sqrt(ncol(data) - 1)),  # 使用特征数平方根作为 mtry 的常用做法
+    min.node.size = 10,
+    num.threads = parallel::detectCores()  # 使用所有可用核心
+  )
+  oob_errors[i] <- model$prediction.error
+}
+
+
+# 创建数据框用于绘图
+results <- data.frame(ntrees = ntrees_values, OOB_Error = oob_errors)
+
+# 绘制 OOB 错误率曲线
+ggplot(results, aes(x = ntrees, y = OOB_Error)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "OOB Error Rate vs Number of Trees",
+       x = "Number of Trees",
+       y = "OOB Error Rate") +
+  theme_minimal()
+
+
+```
+
+
+
+```{r}
+data$Credit_Score <- as.factor(data$Credit_Score)
+
+# 划分训练集和测试集
+set.seed(123)  # 为了可重复性设置随机种子
+training_index <- sample(1:nrow(data), 0.8 * nrow(data))  # 选择80%数据为训练集
+train_data <- data[training_index, ]
+test_data <- data[-training_index, ]
+
+# 建立随机森林模型
+model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 500)
+
+# 预测和评估
+#predictions <- predict(model, test_data)
+#table(predictions, test_data$Credit_Score)
+
+# 计算准确率
+#accuracy <- sum(predictions == test_data$Credit_Score) / nrow(test_data)
+#print(paste("Accuracy:", accuracy))
+
+# 预测
+predictions <- predict(model, test_data)
+
+# 使用混淆矩阵计算评估指标
+conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score))
+
+# 打印混淆矩阵和相关统计数据
+print(conf_matrix)
+```
+
+
+
+# 3. Visualisation
+
+```{r}
+plot(model)
+```
+
+# Selected Features
+
+Outstanding_Debt	5847.895		
+Interest_Rate	4514.114		
+Credit_Mix	4257.434		
+Credit_History_Age	3776.069		
+Delay_from_due_date	3474.969		
+Changed_Credit_Limit	3203.479		
+Monthly_Balance	2589.577		
+Amount_invested_monthly	2581.752		
+Credit_Utilization_Ratio	2478.122		
+Num_Credit_Card	2354.268	
+Total_EMI_per_month	2348.108		
+Num_Credit_Inquiries	2281.634		
+Monthly_Inhand_Salary	2234.555		
+Annual_Income	2224.773		
+
+```{r}
+# 假设已经加载了完整的数据集到变量 data 中
+selected_features <- data[, c("Outstanding_Debt", "Interest_Rate", "Credit_Mix", "Credit_History_Age",
+                              "Delay_from_due_date", "Changed_Credit_Limit", "Monthly_Balance",
+                              "Amount_invested_monthly", "Credit_Utilization_Ratio", "Num_Credit_Card",
+                              "Total_EMI_per_month", "Num_Credit_Inquiries", "Monthly_Inhand_Salary",
+                              "Annual_Income", "Credit_Score")]
+```
+
+
+```{r}
+selected_features$Credit_Score <- as.factor(selected_features$Credit_Score)
+
+# 划分训练集和测试集
+set.seed(123)  # 为了可重复性设置随机种子
+training_index <- sample(1:nrow(selected_features), 0.8 * nrow(selected_features))  # 选择80%数据为训练集
+train_data <- selected_features[training_index, ]
+test_data <- selected_features[-training_index, ]
+
+# 建立随机森林模型
+model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 500)
+
+# 预测
+predictions <- predict(model, test_data)
+
+# 使用混淆矩阵计算评估指标
+conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score))
+
+# 打印混淆矩阵和相关统计数据
+print(conf_matrix)
+```
+
+
+
+
+
