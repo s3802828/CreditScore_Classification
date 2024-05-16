@@ -1,0 +1,291 @@
+---
+title: 5003_random forest"
+author: "Wanxin Bao"
+date: "2024-05-11"
+output:
+   html_document:
+    fig_caption: yes 
+    number_sections: yes
+    self_contained: yes
+    theme: flatly
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_folding: hide
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Preparation and data load
+
+```{r, include=FALSE}
+library(randomForest)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(pROC)
+```
+
+```{r}
+data <- read.csv("C:/Users/haoyu/Desktop/cleaned_data.csv")
+head(data)
+```
+
+# 1. Rondom Forest
+
+
+```{r}
+data$Credit_Score <- as.factor(data$Credit_Score)
+
+# Divide training and testing sets
+set.seed(123)  
+training_index <- sample(1:nrow(data), 0.8 * nrow(data))  # 选择80%数据为训练集
+train_data <- data[training_index, ]
+test_data <- data[-training_index, ]
+
+# Establishing a random forest model
+model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 100)
+
+
+#predictions <- predict(model, test_data)
+#table(predictions, test_data$Credit_Score)
+
+
+#accuracy <- sum(predictions == test_data$Credit_Score) / nrow(test_data)
+#print(paste("Accuracy:", accuracy))
+
+predictions <- predict(model, test_data)
+
+# Using Confusion Matrix to Calculate Evaluation Metrics
+conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score))
+
+print(conf_matrix)
+
+accuracy <- conf_matrix$overall['Accuracy']
+precision <- conf_matrix$byClass['Pos Pred Value']
+recall <- conf_matrix$byClass['Sensitivity']
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+```
+
+
+```{r}
+print(table(data$Credit_Score))
+
+print(table(predictions))
+
+conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score), mode = 'everything')
+print(conf_matrix)
+
+print(conf_matrix$byClass)
+
+```
+
+
+
+# 2. parameters
+
+
+```{r}
+library(ranger)
+
+model <- ranger(
+    Credit_Score ~ ., 
+    data = data, 
+    num.trees = 100, 
+    mtry = floor(sqrt(ncol(data) - 1)),
+    min.node.size = 10,
+    num.threads = parallel::detectCores()  
+)
+
+print(model)
+
+
+```
+
+
+```{r}
+mtry_values <- seq(2, 10, by = 2)
+num_trees <- 100
+oob_errors <- numeric(length(mtry_values))
+
+# Train the model for each mtry value and collect OOB error rates
+for (i in seq_along(mtry_values)) {
+  model <- ranger(
+    formula = Credit_Score ~ .,
+    data = data,
+    num.trees = num_trees,
+    mtry = mtry_values[i],
+    min.node.size = 10,
+    num.threads = parallel::detectCores()
+  )
+  oob_errors[i] <- model$prediction.error
+}
+
+
+results <- data.frame(mtry = mtry_values, OOB_Error = oob_errors)
+
+# Plot OOB error rate curve
+ggplot(results, aes(x = mtry, y = OOB_Error)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "OOB Error Rate vs Mtry",
+       x = "Number of variables randomly sampled as candidates at each split (mtry)",
+       y = "OOB Error Rate") +
+  theme_minimal()
+
+```
+
+
+```{r}
+ntrees_values <- seq(100, 600, by = 100)
+oob_errors <- numeric(length(ntrees_values))
+mtry_values <- 4
+
+
+# Collect OOB error rates
+for (i in seq_along(ntrees_values)) {
+  model <- ranger(
+    formula = Credit_Score ~ .,
+    data = data,
+    num.trees = ntrees_values[i],
+    mtry = floor(sqrt(ncol(data) - 1)),  
+    min.node.size = 10,
+    num.threads = parallel::detectCores()  
+  )
+  oob_errors[i] <- model$prediction.error
+}
+
+
+
+results <- data.frame(ntrees = ntrees_values, OOB_Error = oob_errors)
+
+# Plot OOB error rate curve
+ggplot(results, aes(x = ntrees, y = OOB_Error)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "OOB Error Rate vs Number of Trees",
+       x = "Number of Trees",
+       y = "OOB Error Rate") +
+  theme_minimal()
+
+
+```
+
+
+# evaluation
+```{r}
+library(randomForest)
+library(pROC)
+library(caret)
+library(ggplot2)
+
+selected_features <- data[, c("Interest_Rate", "Credit_Mix", "Credit_History_Age", "Delay_from_due_date",
+                              "Changed_Credit_Limit", "Amount_invested_monthly", "Monthly_Balance",
+                              "Credit_Utilization_Ratio", "Total_EMI_per_month", "Num_Credit_Inquiries",
+                              "Num_Credit_Card", "Annual_Income", "Monthly_Inhand_Salary", "Num_of_Delayed_Payment",
+                              "Age", "Num_Bank_Accounts", "Payment_of_Min_Amount", "Credit_Score")]
+
+selected_features$Credit_Score <- as.factor(selected_features$Credit_Score)
+
+# Divide training and testing sets
+set.seed(123)  
+training_index <- sample(1:nrow(selected_features), 0.8 * nrow(selected_features))  
+train_data <- selected_features[training_index, ]
+test_data <- selected_features[-training_index, ]
+
+# Establishing a random forest model
+model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 600, mtry = 6)
+
+
+class_predictions <- predict(model, test_data)
+
+prob_predictions <- predict(model, test_data, type = "prob")
+
+
+print(table(data$Credit_Score))
+
+
+print(table(class_predictions))
+```
+
+
+
+
+
+
+```{r}
+# Calculate confusion matrix
+conf_matrix <- confusionMatrix(as.factor(class_predictions), as.factor(test_data$Credit_Score), mode = 'everything')
+
+# Accuracy
+accuracy <- conf_matrix$overall['Accuracy']
+print(paste("Accuracy:", round(accuracy, 3)))
+
+stats <- conf_matrix$byClass[c("Precision", "Recall", "F1")]
+class_levels <- levels(test_data$Credit_Score)  
+
+
+# Precision, Recall, F1
+precision <- conf_matrix$byClass[, "Precision"]
+recall <- conf_matrix$byClass[, "Recall"]
+f1_score <- conf_matrix$byClass[, "F1"]
+
+
+class_levels <- gsub("Class: ", "", rownames(conf_matrix$byClass))
+
+# Print relevant statistical data
+for (i in 1:length(class_levels)) {
+    cat("\n", class_levels[i], "Metrics:\n")
+    cat("Precision:", round(precision[i], 3), "\n")
+    cat("Recall:", round(recall[i], 3), "\n")
+    cat("F1 Score:", round(f1_score[i], 3), "\n")
+}
+
+# Prepare ROC data
+all_roc_data <- data.frame()
+label_data <- data.frame()
+
+class_levels <- levels(test_data$Credit_Score)
+colors <- c("Good-Poor" = "black", "Good-Standard" = "red", "Poor-Standard" = "blue")
+plot_titles <- names(colors)
+
+for (i in 1:length(class_levels)) {
+    actuals <- ifelse(test_data$Credit_Score == class_levels[i], 1, 0)
+    preds <- prob_predictions[, class_levels[i]]
+    roc_obj <- roc(actuals, preds)
+    auc_value <- auc(roc_obj)  
+    roc_data <- data.frame(
+        specificity = 1 - roc_obj$specificities,
+        sensitivity = roc_obj$sensitivities,
+        class = plot_titles[i]
+    )
+    all_roc_data <- rbind(all_roc_data, roc_data)
+    
+    label_data <- rbind(label_data, data.frame(
+        specificity = 0.2,  
+        sensitivity = 1 - 0.05 * i,  
+        class = plot_titles[i],
+        label = paste("AUC for", class_levels[i], ":", round(auc_value, 3))
+    ))
+}
+
+# Plot ROC curve graph
+ggplot(all_roc_data, aes(x = specificity, y = sensitivity, color = class)) +
+    geom_line() +
+    scale_color_manual(values = colors, name = NULL) +  
+    geom_text(data = label_data, aes(label = label), hjust = 0, vjust = 0) +
+    labs(title = "Combined ROC Curve", x = "1 - Specificity", y = "Sensitivity") +
+    theme_minimal()
+
+```
+
+
+
+
+
+
