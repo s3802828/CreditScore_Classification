@@ -1,0 +1,108 @@
+---
+title: "Group Project"
+author: "Group 38"
+date: "2024-04-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load libraries
+```{r}
+library('tidyverse')
+library('readr')
+library('dplyr')
+library('ggplot2')
+library('broom')
+library('tinytex')
+library('caret')
+library('pROC')
+```
+
+## Load dataset
+
+```{r}
+data <- as.data.frame(read.csv("cleaned_data.csv", header = TRUE))
+head(data)
+```
+```{r}
+frequency_table <- table(data$Credit_Score)
+frequency_table
+barplot(frequency_table, main = "Distribution of Credit Scores", ylab = "Frequency")
+```
+In this data, we can see the Good:Poor:Standard ≈ 1:1.63:2.98. Given the ratios, the imbalance in this dataset is not particular. Additionally, the number of loans a person has could also impact our prediction results, so methods like oversampling or undersampling that affect the number of our data points are not suitable. Therefore, there is no need to further process the data. In model selection, we have chosen Random Forest to construct multiple models to reduce the impact on minority classes. For other models, we can adjust class weights to compensate for the lack of samples. In the choice of performance metrics, we have selected F1-score, Precision, Recall, and AUC-ROC, which can reflect the performance of models under imbalanced data conditions.
+
+## LDA
+
+LDA, as a simple and effective classification method, usually achieves high performance without the need for parameter adjustment. Therefore, we did not adjust the parameters of LDA but used the default values instead.
+
+### selected features
+```{r}
+# Select data columns
+data <- data[c("Outstanding_Debt", "Interest_Rate", "Credit_Mix", "Credit_History_Age", 
+                      "Delay_from_due_date", "Changed_Credit_Limit", "Monthly_Balance", 
+                      "Amount_invested_monthly", "Credit_Utilization_Ratio", "Num_Credit_Card", 
+                      "Total_EMI_per_month", "Num_Credit_Inquiries", "Monthly_Inhand_Salary", 
+                      "Annual_Income", "Num_of_Delayed_Payment", "Age", "Num_Bank_Accounts",
+                "Payment_of_Min_Amount","Credit_Score")]
+# Split dataset
+set.seed(5003)  
+train_index <- createDataPartition(data$Credit_Score, p = 0.8)[[1]]
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+head(test_data)
+```
+```{r}
+# Building LDA model
+lda_model <- train(
+  Credit_Score ~ ., 
+  data = train_data, 
+  method = "lda",
+  trControl = trainControl(method = "repeatedcv", repeats = 5),
+)
+lda_model
+```
+```{r}
+lda_pred <- predict(lda_model, newdata = test_data)
+lda_confusion <- confusionMatrix(lda_pred, as.factor(test_data$Credit_Score))
+accuracy <- lda_confusion$overall["Accuracy"]
+class_report <- as.data.frame(lda_confusion$byClass)
+lda.confusionMatrix <-confusionMatrix(factor(lda_pred),factor(test_data$Credit_Score))
+Accuracy <- lda.confusionMatrix$overall["Accuracy"]
+Precision <- lda.confusionMatrix$byClass[, "Precision"]
+Recall <- lda.confusionMatrix$byClass[, "Recall"]
+F1 <- lda.confusionMatrix$byClass[,"F1"]
+print(Accuracy)
+print('Precision')
+print(Precision)
+print('Recall')
+print(Recall)
+print('F1')
+print(F1)
+```
+```{r}
+roc <- multiclass.roc(test_data$Credit_Score, as.numeric(lda_pred), levels=base::levels(as.factor(test_data$Credit_Score)))
+plot.roc(roc$rocs[[1]], 
+         print.auc=T,
+         legacy.axes = T)
+plot.roc(roc$rocs[[2]],
+         add=T, col = 'red',
+         print.auc = T,
+         legacy.axes = T,
+         print.auc.adj = c(0,3))
+plot.roc(roc$rocs[[3]],add=T, col = 'blue',
+         print.auc=T,
+         legacy.axes = T,
+         print.auc.adj = c(0,5))
+legend('bottomright',
+       legend = c('Good-Poor',
+                  'Good-Standard',
+                  'Poor-Standard'),
+       col=c('black','red','blue'),lwd=2)
+```
+From the results, we can see that the performance of LDA is not particularly ideal. The accuracy is about 64%, which is not high. The F1-scores of the three classes are proportional to their prevalence in the entire dataset, with the largest 'Standard' class having an F1-score of 0.69. In terms of AUC-ROC, the Good-Poor and Good-Standard scenarios are roughly the same, while Poor-Standard is the lowest. The results indicate that although LDA is suitable for handling multi-class problems, it performs poorly when dealing with imbalanced data.
+
+
+
+
