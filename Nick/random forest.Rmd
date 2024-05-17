@@ -1,17 +1,8 @@
 ---
 title: 5003_random forest"
-author: "Wanxin Bao"
-date: "2024-05-11"
-output:
-   html_document:
-    fig_caption: yes 
-    number_sections: yes
-    self_contained: yes
-    theme: flatly
-    toc: true
-    toc_depth: 2
-    toc_float: true
-    code_folding: hide
+author: "haoyu"
+date: "2024-05-17"
+
 ---
 
 
@@ -19,113 +10,54 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
-# Preparation and data load
-
-```{r, include=FALSE}
+```{r}
 library(randomForest)
-library(dplyr)
-library(ggplot2)
-library(caret)
 library(pROC)
-```
-
-```{r}
-data <- read.csv("C:/Users/haoyu/Desktop/cleaned_data.csv")
-head(data)
-```
-
-# 1. Rondom Forest
-
-
-```{r}
-data$Credit_Score <- as.factor(data$Credit_Score)
-
-# Divide training and testing sets
-set.seed(123)  
-training_index <- sample(1:nrow(data), 0.8 * nrow(data))  # 选择80%数据为训练集
-train_data <- data[training_index, ]
-test_data <- data[-training_index, ]
-
-# Establishing a random forest model
-model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 100)
-
-
-#predictions <- predict(model, test_data)
-#table(predictions, test_data$Credit_Score)
-
-
-#accuracy <- sum(predictions == test_data$Credit_Score) / nrow(test_data)
-#print(paste("Accuracy:", accuracy))
-
-predictions <- predict(model, test_data)
-
-# Using Confusion Matrix to Calculate Evaluation Metrics
-conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score))
-
-print(conf_matrix)
-
-accuracy <- conf_matrix$overall['Accuracy']
-precision <- conf_matrix$byClass['Pos Pred Value']
-recall <- conf_matrix$byClass['Sensitivity']
-f1_score <- 2 * (precision * recall) / (precision + recall)
-
-```
-
-
-```{r}
-print(table(data$Credit_Score))
-
-print(table(predictions))
-
-conf_matrix <- confusionMatrix(as.factor(predictions), as.factor(test_data$Credit_Score), mode = 'everything')
-print(conf_matrix)
-
-print(conf_matrix$byClass)
-
-```
-
-
-
-# 2. parameters
-
-
-```{r}
+library(caret)
+library(ggplot2)
+library(dplyr)
 library(ranger)
+library(parallel)
+data <- read.csv("C:/Users/haoyu/Desktop/cleaned_data.csv")
 
+selected_features <- data[, c("Interest_Rate", "Credit_Mix", "Credit_History_Age", "Delay_from_due_date",
+                              "Changed_Credit_Limit", "Amount_invested_monthly", "Monthly_Balance",
+                              "Credit_Utilization_Ratio", "Total_EMI_per_month", "Num_Credit_Inquiries",
+                              "Num_Credit_Card", "Annual_Income", "Monthly_Inhand_Salary", "Num_of_Delayed_Payment",
+                              "Age", "Num_Bank_Accounts", "Payment_of_Min_Amount", "Credit_Score")]
+
+selected_features$Credit_Score <- as.factor(selected_features$Credit_Score)
+```
+
+```{r}
+# Train the model
 model <- ranger(
     Credit_Score ~ ., 
-    data = data, 
+    data = selected_features, 
     num.trees = 100, 
-    mtry = floor(sqrt(ncol(data) - 1)),
+    mtry = floor(sqrt(ncol(selected_features) - 1)),
     min.node.size = 10,
-    num.threads = parallel::detectCores()  
+    num.threads = detectCores()  
 )
 
 print(model)
 
-
-```
-
-
-```{r}
+# Optimize the mtry parameter
 mtry_values <- seq(2, 10, by = 2)
 num_trees <- 100
 oob_errors <- numeric(length(mtry_values))
 
-# Train the model for each mtry value and collect OOB error rates
 for (i in seq_along(mtry_values)) {
   model <- ranger(
     formula = Credit_Score ~ .,
-    data = data,
+    data = selected_features,
     num.trees = num_trees,
     mtry = mtry_values[i],
     min.node.size = 10,
-    num.threads = parallel::detectCores()
+    num.threads = detectCores()
   )
   oob_errors[i] <- model$prediction.error
 }
-
 
 results <- data.frame(mtry = mtry_values, OOB_Error = oob_errors)
 
@@ -138,29 +70,22 @@ ggplot(results, aes(x = mtry, y = OOB_Error)) +
        y = "OOB Error Rate") +
   theme_minimal()
 
-```
-
-
-```{r}
+# Optimize the ntrees parameter
 ntrees_values <- seq(100, 600, by = 100)
 oob_errors <- numeric(length(ntrees_values))
 mtry_values <- 4
 
-
-# Collect OOB error rates
 for (i in seq_along(ntrees_values)) {
   model <- ranger(
     formula = Credit_Score ~ .,
-    data = data,
+    data = selected_features,
     num.trees = ntrees_values[i],
-    mtry = floor(sqrt(ncol(data) - 1)),  
+    mtry = floor(sqrt(ncol(selected_features) - 1)),  
     min.node.size = 10,
-    num.threads = parallel::detectCores()  
+    num.threads = detectCores()  
   )
   oob_errors[i] <- model$prediction.error
 }
-
-
 
 results <- data.frame(ntrees = ntrees_values, OOB_Error = oob_errors)
 
@@ -172,26 +97,11 @@ ggplot(results, aes(x = ntrees, y = OOB_Error)) +
        x = "Number of Trees",
        y = "OOB Error Rate") +
   theme_minimal()
-
-
 ```
 
 
-# evaluation
+
 ```{r}
-library(randomForest)
-library(pROC)
-library(caret)
-library(ggplot2)
-
-selected_features <- data[, c("Interest_Rate", "Credit_Mix", "Credit_History_Age", "Delay_from_due_date",
-                              "Changed_Credit_Limit", "Amount_invested_monthly", "Monthly_Balance",
-                              "Credit_Utilization_Ratio", "Total_EMI_per_month", "Num_Credit_Inquiries",
-                              "Num_Credit_Card", "Annual_Income", "Monthly_Inhand_Salary", "Num_of_Delayed_Payment",
-                              "Age", "Num_Bank_Accounts", "Payment_of_Min_Amount", "Credit_Score")]
-
-selected_features$Credit_Score <- as.factor(selected_features$Credit_Score)
-
 # Divide training and testing sets
 set.seed(123)  
 training_index <- sample(1:nrow(selected_features), 0.8 * nrow(selected_features))  
@@ -199,7 +109,7 @@ train_data <- selected_features[training_index, ]
 test_data <- selected_features[-training_index, ]
 
 # Establishing a random forest model
-model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 600, mtry = 6)
+model <- randomForest(Credit_Score ~ ., data = train_data, ntree = 500, mtry = 8)
 
 
 class_predictions <- predict(model, test_data)
@@ -207,16 +117,8 @@ class_predictions <- predict(model, test_data)
 prob_predictions <- predict(model, test_data, type = "prob")
 
 
-print(table(data$Credit_Score))
 
-
-print(table(class_predictions))
 ```
-
-
-
-
-
 
 ```{r}
 # Calculate confusion matrix
@@ -283,7 +185,9 @@ ggplot(all_roc_data, aes(x = specificity, y = sensitivity, color = class)) +
     theme_minimal()
 
 ```
-
+To optimize the random forest model, we tuned two key parameters using the Out-of-Bag (OOB) error rate as the evaluation metric.
+Number of Variables Tried at Each Split (mtry): We tested values from 2 to 10 with a step of 2. The optimal value was found to be 8.
+Number of Trees (ntree): We tested values from 100 to 600 with a step of 100. The optimal value was found to be 500.
 
 
 
